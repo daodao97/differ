@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.0/beautify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.0/beautify-html.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/4.0.2/diff.min.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center text-gray-800">{{.title}}</h1>
+        
+        <div class="bg-white shadow-md rounded-lg overflow-hidden mb-8">
+            <div class="grid grid-cols-2 gap-4 p-6">
+                <div>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">文件夹 1: {{.d1}}</h2>
+                    {{if .err1}}
+                        <p class="text-red-500">错误: {{.err1}}</p>
+                    {{end}}
+                </div>
+                <div>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">文件夹 2: {{.d2}}</h2>
+                    {{if .err2}}
+                        <p class="text-red-500">错误: {{.err2}}</p>
+                    {{end}}
+                </div>
+            </div>
+            
+            {{if and (not .err1) (not .err2)}}
+                <div class="border-t border-gray-200">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文件路径</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文件夹 1</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文件夹 2</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">是否有差异</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {{range $path := .allPaths}}
+                                <tr data-path="{{$path}}">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {{if and (index $.files1Map $path) (index $.files2Map $path)}}
+                                            <a href="/diff?file1={{$.d1}}/{{$path}}&file2={{$.d2}}/{{$path}}" class="text-blue-600 hover:text-blue-800">
+                                                {{$path}}
+                                            </a>
+                                        {{else}}
+                                            {{$path}}
+                                        {{end}}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{if index $.files1Map $path}}
+                                            <span class="text-green-600">存在</span>
+                                        {{else}}
+                                            <span class="text-red-600">不存在</span>
+                                        {{end}}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{if index $.files2Map $path}}
+                                            <span class="text-green-600">存在</span>
+                                        {{else}}
+                                            <span class="text-red-600">不存在</span>
+                                        {{end}}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <span class="diff-status text-gray-600">检查中...</span>
+                                    </td>
+                                </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            {{end}}
+        </div>
+    </div>
+    
+    <script>
+    function formatCode(code, isHTML) {
+        return isHTML ? html_beautify(code) : js_beautify(code);
+    }
+
+    function checkDiff(path) {
+        Promise.all([
+            fetch(`/file_content?file={{.d1}}/${path}`).then(res => res.json()).then(data => data.content),
+            fetch(`/file_content?file={{.d2}}/${path}`).then(res => res.json()).then(data => data.content)
+        ]).then(([content1, content2]) => {
+            const isHTML = content1.trim().startsWith('<') || content2.trim().startsWith('<');
+            const formattedContent1 = formatCode(content1, isHTML);
+            const formattedContent2 = formatCode(content2, isHTML);
+            
+            const diff = Diff.createPatch(path, formattedContent1, formattedContent2).trim();
+
+            const hasDiff = diff.split('\n').length > 4
+
+            console.log(diff, diff.split('\n').length)
+            
+            const row = document.querySelector(`tr[data-path="${path}"]`);
+            const diffElement = row.querySelector('.diff-status');
+            if (hasDiff) {
+                diffElement.textContent = '有差异';
+                diffElement.classList.add('text-red-600');
+            } else {
+                diffElement.textContent = '无差异';
+                diffElement.classList.add('text-green-600');
+            }
+        }).catch(error => {
+            console.error('Error checking diff:', error);
+            const row = document.querySelector(`tr[data-path="${path}"]`);
+            const diffElement = row.querySelector('.diff-status');
+            diffElement.textContent = '检查失败';
+            diffElement.classList.add('text-yellow-600');
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const rows = document.querySelectorAll('tr[data-path]');
+        rows.forEach(row => {
+            const path = row.getAttribute('data-path');
+            checkDiff(path);
+        });
+    });
+    </script>
+</body>
+</html>

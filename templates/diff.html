@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JS/HTML Diff Tool with Highlighting</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.0/beautify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.0/beautify-html.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/4.0.2/diff.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+        textarea { width: 45%; height: 300px; }
+        #diff { margin-top: 20px; margin-bottom: 40px; font-family: monospace; white-space: pre-wrap; }
+        .diff-added { background-color: #e6ffec; }
+        .diff-removed { background-color: #ffebe9; }
+        .diff-header { color: #808080; }
+    </style>
+</head>
+<body>
+    <!-- <button onclick="compareCodes()">Compare</button> -->
+    <div id="diff" style="display: none;"></div> 
+    <!-- monaco editor diff -->
+    <div id="monaco-diff-editor" style="width:100%;height:100vh; padding-top: 40px;"></div>
+
+    <div style="display: none;">
+        <textarea id="code1">{{.content1}}</textarea>
+        <textarea id="code2">{{.content2}}</textarea>
+        <br>
+    </div>
+    
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.30.1/min/vs/loader.min.js"></script>
+    <script>
+
+        let file1 = "{{.file1}}"
+        let file2 = "{{.file2}}"
+
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.30.1/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            var code1 = document.getElementById('code1').value;
+            var code2 = document.getElementById('code2').value;
+            var originalModel = monaco.editor.createModel(code1, 'plaintext');
+            var modifiedModel = monaco.editor.createModel(code2, 'plaintext');
+
+            window.diffEditor = monaco.editor.createDiffEditor(document.getElementById('monaco-diff-editor'), {
+                // 设置一些选项
+                automaticLayout: true,
+                originalEditable: false, // 原始代码不可编辑
+                renderSideBySide: true, // 并排显示
+                diffWordWrap: 'off',
+                renderOverviewRuler: false,
+                originalEditorOptions: {
+                    readOnly: true,
+                    minimap: { enabled: false },
+                    scrollbar: { vertical: 'hidden' },
+                    lineNumbers: 'off',
+                    folding: false,
+                    lineDecorationsWidth: 0,
+                    lineNumbersMinChars: 0,
+                    padding: { top: 50 }, // 添加顶部填充
+                },
+                modifiedEditorOptions: {
+                    readOnly: true,
+                    minimap: { enabled: false },
+                    scrollbar: { vertical: 'hidden' },
+                    lineNumbers: 'off',
+                    folding: false,
+                    lineDecorationsWidth: 0,
+                    lineNumbersMinChars: 0,
+                    padding: { top: 50 }, // 添加顶部填充
+                }
+            });
+
+            window.diffEditor.setModel({
+                original: originalModel,
+                modified: modifiedModel
+            });
+
+            // 根据文件扩展名设置语言
+            var fileExtension = getFileExtension("{{.file1}}");
+            var language = getLanguageFromExtension(fileExtension);
+            monaco.editor.setModelLanguage(originalModel, language);
+            monaco.editor.setModelLanguage(modifiedModel, language);
+
+            // 在设置语言后更新模型的值
+            originalModel.setValue(code1);
+            modifiedModel.setValue(code2);
+
+            // 添加文件名到编辑器顶部
+            var originalTitleElement = document.createElement('div');
+            originalTitleElement.textContent = "{{.file1}}";
+            originalTitleElement.style.cssText = 'position:absolute;top:-40px;left:0;background:#eee;padding:5px;z-index:1000;width:100%;';
+            window.diffEditor.getOriginalEditor().getContainerDomNode().appendChild(originalTitleElement);
+
+            var modifiedTitleElement = document.createElement('div');
+            modifiedTitleElement.textContent = "{{.file2}}";
+            modifiedTitleElement.style.cssText = 'position:absolute;top:-40px;left:0;background:#eee;padding:5px;z-index:1000;width:100%;';
+            window.diffEditor.getModifiedEditor().getContainerDomNode().appendChild(modifiedTitleElement);
+        });
+
+        function getFileExtension(filename) {
+            return filename.slice((filename.lastIndexOf(".") - 1 >>> 0) + 2);
+        }
+
+        function getLanguageFromExtension(extension) {
+            var languageMap = {
+                'js': 'javascript',
+                'ts': 'typescript',
+                'py': 'python',
+                'html': 'html',
+                'css': 'css',
+                'json': 'json',
+                'go': 'go',
+                // 可以根据需要添加��多映射
+            };
+            return languageMap[extension.toLowerCase()] || 'plaintext';
+        }
+
+        function formatCode(code, isHTML) {
+            // 首先压缩代码
+            let compressedCode = code.replace(/\s+/g, ' ').trim();
+            
+            // 然后格式化压缩后的代码
+            if (isHTML) {
+                return html_beautify(compressedCode, {
+                    indent_size: 2,
+                    wrap_line_length: 80
+                });
+            } else {
+                return js_beautify(compressedCode, {
+                    indent_size: 2,
+                    max_preserve_newlines: 2
+                });
+            }
+        }
+
+        function highlightDiff(diff) {
+            const lines = diff.split('\n');
+            let html = '';
+            for (let line of lines) {
+                if (line.startsWith('+')) {
+                    html += `<div class="diff-added">${escapeHtml(line)}</div>`;
+                } else if (line.startsWith('-')) {
+                    html += `<div class="diff-removed">${escapeHtml(line)}</div>`;
+                } else if (line.startsWith('@')) {
+                    html += `<div class="diff-header">${escapeHtml(line)}</div>`;
+                } else {
+                    html += `<div>${escapeHtml(line)}</div>`;
+                }
+            }
+            return html;
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+        }
+
+        function compareCodes() {
+            let code1 = document.getElementById('code1').value;
+            let code2 = document.getElementById('code2').value;
+
+            // 判断是否为 HTML
+            const isHTML = code1.trim().startsWith('<') || code2.trim().startsWith('<');
+
+            // 格式化代码
+            code1 = formatCode(code1, isHTML);
+            code2 = formatCode(code2, isHTML);
+
+            // 更新文本区域的内容格式化后的代码
+            document.getElementById('code1').value = code1;
+            document.getElementById('code2').value = code2;
+
+            // 对比代码
+            const diff = Diff.createTwoFilesPatch("{{.file1}}", "{{.file2}}", code1, code2);
+
+            // 显示高亮的差异
+            document.getElementById('diff').innerHTML = highlightDiff(diff);
+
+            // 更新Monaco编辑器的内容
+            if (window.diffEditor) {
+                var originalModel = window.diffEditor.getOriginalEditor().getModel();
+                var modifiedModel = window.diffEditor.getModifiedEditor().getModel();
+                
+                originalModel.setValue(code1);
+                modifiedModel.setValue(code2);
+
+                // 重新设置语言（如果需要）
+                var fileExtension = getFileExtension("{{.file1}}");
+                var language = getLanguageFromExtension(fileExtension);
+                monaco.editor.setModelLanguage(originalModel, language);
+                monaco.editor.setModelLanguage(modifiedModel, language);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', compareCodes);
+    </script>
+</body>
+</html>

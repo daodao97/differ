@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文本对比工具</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-r from-blue-100 to-purple-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
+        <h1 class="text-3xl font-bold mb-8 text-center text-gray-800">文本对比工具</h1>
+        
+        <form id="compareForm" action="/tree" method="GET" class="space-y-6">
+            <div class="space-y-4">
+                <div>
+                    <label for="d1" class="block text-sm font-medium text-gray-700 mb-2">文件夹 1:</label>
+                    <input type="text" id="d1" name="d1" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 overflow-x-auto">
+                </div>
+                <div>
+                    <label for="d2" class="block text-sm font-medium text-gray-700 mb-2">文件夹 2:</label>
+                    <input type="text" id="d2" name="d2" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 overflow-x-auto">
+                </div>
+            </div>
+            <button type="submit" class="w-full bg-gradient-to-r from-green-400 to-blue-500 text-white py-3 px-4 rounded-md hover:from-green-500 hover:to-blue-600 transition duration-300 font-semibold text-lg">提交</button>
+        </form>
+        
+        <div class="mt-10">
+            <h2 class="text-2xl font-semibold mb-6 text-gray-700">历史记录</h2>
+            <ul id="historyList" class="space-y-3"></ul>
+        </div>
+    </div>
+
+    <script>
+        function saveToLocalStorage(d1, d2) {
+            let history = JSON.parse(localStorage.getItem('folderCompareHistory') || '[]');
+            history.unshift({ d1, d2, timestamp: new Date().toISOString() });
+            history = history.slice(0, 5); // 只保留最近5条记录
+            localStorage.setItem('folderCompareHistory', JSON.stringify(history));
+        }
+
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem('folderCompareHistory') || '[]');
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = '';
+            history.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'bg-gray-100 p-4 rounded cursor-pointer hover:bg-gray-200 transition duration-300';
+                li.innerHTML = `
+                    <span class="font-medium">文件夹1: ${item.d1}</span><br>
+                    <span class="font-medium">文件夹2: ${item.d2}</span><br>
+                    <span class="text-sm text-gray-500">${new Date(item.timestamp).toLocaleString()}</span>
+                `;
+                li.addEventListener('click', function() {
+                    window.location.href = `/tree?d1=${encodeURIComponent(item.d1)}&d2=${encodeURIComponent(item.d2)}`;
+                });
+                historyList.appendChild(li);
+            });
+        }
+
+        document.getElementById('compareForm').addEventListener('submit', function(e) {
+            const d1 = document.getElementById('d1').value;
+            const d2 = document.getElementById('d2').value;
+            saveToLocalStorage(d1, d2);
+        });
+
+        // 页面加载时显示历史记录
+        loadHistory();
+
+        function adjustInputWidth() {
+            const inputs = document.querySelectorAll('input[type="text"]');
+            inputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    this.style.width = 'auto';
+                    this.style.width = (this.scrollWidth + 2) + 'px';
+                });
+            });
+        }
+
+        // 页面加载时调用
+        window.addEventListener('load', adjustInputWidth);
+    </script>
+</body>
+</html>
