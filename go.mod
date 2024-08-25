@@ -1,4 +1,4 @@
-module differ
+module github.com/daodao97/differ
 
 go 1.22.6
 
