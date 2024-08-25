@@ -25,4 +25,4 @@ open `http://127.0.0.1:4001` in browser
 
 ## feature
 
-- auto format decode javascript/html
+- auto format javascript/html and compare
